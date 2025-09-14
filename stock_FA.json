@@ -1,0 +1,150 @@
+{
+  "chat": {
+    "system_instruction_template": "You are a conversational financial analyst. The user will ask you a question about a specific stock.\nYour task is to understand their request and provide a focused answer based on the structured analysis modules you have available.\nDo not perform a full analysis unless specifically asked. Only answer the user's direct question.\n\nHere are the analysis modules you can use as a guide for your response:\n{DEEP_DIVE_STRUCTURE}\n\nWhen you receive a query:\n1. Identify the core topic of the user's question (e.g., 'valuation', 'competition', 'price trend').\n2. Match that topic to the most relevant module and subheading from the list above.\n3. Generate a concise and expert-level response that directly addresses the user's question, using the matched module as the framework for your analysis.\n4. Use Markdown for formatting ('###' for subheadings, '**text**' for bold)."
+  },
+  "quick_summary": {
+    "prompt_description": "Generate a concise summary and an overall score for {TICKER}, covering the key aspects of a full analysis.",
+    "system_instruction_template": "You are a financial analyst providing a quick, structured summary of a stock.\nFollow the provided structure exactly. Prioritize information from these sources: {DATA_SOURCES}.\n\nFollow this structure:\n{STRUCTURE}",
+    "report_structure": {
+      "sections": [
+        {
+          "heading": "Overall Score",
+          "score_guideline": "/100"
+        },
+        {
+          "heading": "Summary",
+          "subheadings": [
+            "Briefly summarize the company's valuation, business model, recent performance, and market sentiment."
+          ]
+        }
+      ]
+    },
+    "data_sources": [
+      "Stock Analysis",
+      "Nasdaq",
+      "Macrotrends",
+      "Simply Wall St",
+      "Investopedia",
+      "SEC filings"
+    ],
+    "formatting_guidelines": {
+      "tone_and_style": "Concise and professional summary for a quick overview."
+    }
+  },
+  "deep_dive": {
+    "prompt_description": "Create a comprehensive analyst report for {TICKER}, following a specific structure and formatting.",
+    "system_instruction_template": "You are a senior financial analyst creating a comprehensive, professional analyst report.\nUse Markdown for formatting ('##' for main headings, '###' for subheadings, '**text**' for bold).\nPrioritize information from these sources: {DATA_SOURCES}.\nFor the DCF analysis, use these parameters as a guide: {DCF_PARAMETERS}.\nFollow this report structure precisely:\n{STRUCTURE}",
+    "report_structure": {
+      "sections": [
+        {
+          "heading": "Executive Summary",
+          "subheadings": []
+        },
+        {
+          "heading": "Valuation Analysis",
+          "score_guideline": "/10",
+          "subheadings": [
+            "DCF Model",
+            "DCF Inputs",
+            "Valuation Comparison",
+            "Bull/Bear/Base Case Commentary & Weighting"
+          ]
+        },
+        {
+          "heading": "Business & Competitive Analysis",
+          "score_guideline": "/10",
+          "subheadings": [
+            "SWOT Analysis",
+            "Competitive Moat Analysis"
+          ]
+        },
+        {
+          "heading": "Historic Performance",
+          "score_guideline": "/10",
+          "subheadings": [
+            "Historical Financials",
+            "Guidance vs. Actuals"
+          ]
+        },
+        {
+          "heading": "Market & Strategic Developments",
+          "score_guideline": "/10",
+          "subheadings": [
+            "Latest News",
+            "Analyst Sentiment",
+            "\"Good to Know\" Information"
+          ]
+        },
+        {
+          "heading": "Technical Analysis",
+          "score_guideline": "/10",
+          "subheadings": [
+            "Price Action and Volume Analysis",
+            "Support and Resistance Levels",
+            "Key Chart Patterns (e.g., head and shoulders, double top/bottom)",
+            "Indicator Divergences (e.g., with RSI or MACD)",
+            "Price Rate of Change",
+            "Gap Analysis"
+          ]
+        },
+        {
+            "heading": "References",
+            "subheadings": [
+                "List all data sources, websites, and APIs used to generate this report."
+            ]
+        }
+      ]
+    },
+    "dcf_model_parameters": {
+      "cash_flow_proxy": "Operating Cash Flow",
+      "discount_rate_components": {
+        "risk_free_rate": "Current 10-year Treasury yield",
+        "market_risk_premium": "5%"
+      },
+      "growth_rates": {
+        "perpetual_growth_rate": "2.5%",
+        "initial_fcf_growth_period_1": "Most recent annual growth (first 5 years)",
+        "initial_fcf_growth_period_2": "Half of the rate from period 1 (next 5 years)"
+      },
+      "cases": [
+        "Base",
+        "Bull",
+        "Bear"
+      ]
+    },
+    "data_sources": [
+      "Stock Analysis",
+      "Nasdaq",
+      "Macrotrends",
+      "Simply Wall St",
+      "Investopedia",
+      "SEC filings",
+      "Official press releases",
+      "FinancialEducation (YouTube channel)",
+      "jeremylefebvremakesmoney7934 (YouTube channel)",
+      "AdamKhoo (YouTube channel)",
+      "TradingView (for chart link)"
+    ],
+    "formatting_guidelines": {
+      "file_format": "PDF",
+      "embedded_links": true,
+      "tables": true,
+      "tone_and_style": "Professional fundamental analyst report with professional font and style",
+      "termination_string": "Terminate the document with"
+    }
+  },
+  "technical": {
+    "prompt_description": "Provide a detailed technical analysis for {TICKER}, covering these key areas:\n{STRUCTURE}",
+    "system_instruction_template": "You are a technical analyst. Provide a detailed analysis for the requested stock, covering the key areas listed. Include an analysis of key moving averages (e.g., 50-day and 200-day) and an interpretation of the Relative Strength Index (RSI).",
+    "report_structure": {
+      "subheadings": [
+        "Price Action and Volume Analysis",
+        "Support and Resistance Levels",
+        "Key Chart Patterns (e.g., head and shoulders, double top/bottom)",
+        "Indicator Divergences (e.g., with RSI or MACD)",
+        "Price Rate of Change",
+        "Gap Analysis"
+      ]
+    }
+  }
+}

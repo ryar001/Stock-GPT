@@ -1,0 +1,118 @@
+{
+  "id": "deep_dive",
+  "displayName": "Deep Dive FA",
+  "description": "Receive a comprehensive, multi-section fundamental analysis report, perfect for in-depth research. You can also download this report as a PDF.",
+  "prompt_description": "Create a comprehensive analyst report for {TICKER}, following a specific structure and formatting.",
+  "system_instruction_template": "You are a senior financial analyst creating a comprehensive, professional analyst report.\nUse Markdown for formatting ('##' for main headings, '###' for subheadings, '**text**' for bold).\nPrioritize information from these sources: {DATA_SOURCES}.\nFor the DCF analysis, use these parameters as a guide: {DCF_PARAMETERS}.\nFollow this report structure precisely:\n{STRUCTURE}",
+  "citation_template": "\n\nAt the end of the report, under the 'References' section, list all primary websites and data sources you used from the provided list. For any websites, provide a direct, clickable Markdown link.",
+  "report_structure": {
+    "sections": [
+      {
+        "heading": "Executive Summary",
+        "subheadings": []
+      },
+      {
+        "heading": "Valuation Analysis",
+        "score_guideline": "/10",
+        "subheadings": [
+          "DCF Model",
+          "DCF Inputs",
+          "Valuation Comparison",
+          "Bull/Bear/Base Case Commentary & Weighting"
+        ]
+      },
+      {
+        "heading": "Business & Competitive Analysis",
+        "score_guideline": "/10",
+        "subheadings": [
+          "SWOT Analysis",
+          "Competitive Moat Analysis"
+        ]
+      },
+      {
+        "heading": "Historic Performance",
+        "score_guideline": "/10",
+        "subheadings": [
+          "Historical Financials",
+          "Guidance vs. Actuals"
+        ]
+      },
+      {
+        "heading": "Market & Strategic Developments",
+        "score_guideline": "/10",
+        "subheadings": [
+          "Latest News",
+          "Analyst Sentiment",
+          "\"Good to Know\" Information"
+        ]
+      },
+      {
+        "heading": "Environmental, Social, and Governance (ESG) Analysis",
+        "score_guideline": "/10",
+        "subheadings": [
+            "ESG Rating & Key Issues",
+            "Environmental Factors",
+            "Social Factors",
+            "Governance Factors"
+        ]
+      },
+      {
+        "heading": "Technical Analysis",
+        "score_guideline": "/10",
+        "subheadings": [
+          "Price Action and Volume Analysis",
+          "Support and Resistance Levels",
+          "Key Chart Patterns (e.g., head and shoulders, double top/bottom)",
+          "Indicator Divergences (e.g., with RSI or MACD)",
+          "Price Rate of Change",
+          "Gap Analysis"
+        ]
+      },
+      {
+        "heading": "References",
+        "subheadings": [
+          "List all data sources, websites, and APIs used to generate this report."
+        ]
+      }
+    ]
+  },
+  "dcf_model_parameters": {
+    "cash_flow_proxy": "Operating Cash Flow",
+    "discount_rate_components": {
+      "risk_free_rate": "Current 10-year Treasury yield",
+      "market_risk_premium": "5%"
+    },
+    "growth_rates": {
+      "perpetual_growth_rate": "2.5%",
+      "initial_fcf_growth_period_1": "Most recent annual growth (first 5 years)",
+      "initial_fcf_growth_period_2": "Half of the rate from period 1 (next 5 years)"
+    },
+    "cases": [
+      "Base",
+      "Bull",
+      "Bear"
+    ]
+  },
+  "data_sources": [
+    "Stock Analysis",
+    "Nasdaq",
+    "Macrotrends",
+    "Simply Wall St",
+    "Investopedia",
+    "SEC filings",
+    "Official press releases",
+    "MSCI ESG Ratings",
+    "Sustainalytics",
+    "FinancialEducation (YouTube channel)",
+    "jeremylefebvremakesmoney7934 (YouTube channel)",
+    "AdamKhoo (YouTube channel)",
+    "TradingView (for chart link)"
+  ],
+  "formatting_guidelines": {
+    "file_format": "PDF",
+    "embedded_links": true,
+    "tables": true,
+    "tone_and_style": "Professional fundamental analyst report with professional font and style",
+    "termination_string": "Terminate the document with"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "id": "technical",
+  "displayName": "Technical Analysis",
+  "description": "Focus on the numbers. This report provides a detailed technical analysis, including chart patterns, indicators, and support/resistance levels.",
+  "prompt_description": "Provide a detailed technical analysis for {TICKER}, covering these key areas:\n{STRUCTURE}",
+  "system_instruction_template": "You are a technical analyst. Provide a detailed analysis for the requested stock, covering the key areas listed. Include an analysis of key moving averages (e.g., 50-day and 200-day) and an interpretation of the Relative Strength Index (RSI).",
+  "report_structure": {
+    "subheadings": [
+      "Price Action and Volume Analysis",
+      "Support and Resistance Levels",
+      "Key Chart Patterns (e.g., head and shoulders, double top/bottom)",
+      "Indicator Divergences (e.g., with RSI or MACD)",
+      "Price Rate of Change",
+      "Gap Analysis"
+    ]
+  }
+}

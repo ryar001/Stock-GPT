@@ -1,0 +1,5 @@
+{
+  "name": "Stock FA expert",
+  "description": "this gem will take a stock ticker and produce a complete FA analysis on it",
+  "requestFramePermissions": []
+}
