@@ -2,9 +2,11 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
 */
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI, Chat } from '@google/genai';
 import { jsPDF } from "jspdf";
 import autoTable from 'jspdf-autotable';
+import { calculateDCF, DcfInputs } from './calculations/calc_dcf';
+import { calculateRatios, RatioInputs } from './calculations/calc_compare_ratio';
 
 // --- Translations ---
 type Lang = 'en' | 'es' | 'zh-CN';
@@ -14,6 +16,10 @@ const translations = {
     welcome: 'Welcome! Ask a question about a stock, or select a specific report type below.',
     analysis_type_legend: 'Choose Analysis Type',
     analysis_type_chat: 'Chat',
+    analysis_type_caicai: 'Caicai',
+    analysis_type_quick_summary: 'Quick Summary',
+    analysis_type_deep_dive: 'Deep Dive FA',
+    analysis_type_technical: 'Technical Analysis',
     placeholder_chat: "Ask about a stock (e.g., 'moat analysis for TSLA')...",
     placeholder_ticker: "Enter a stock ticker...",
   },
@@ -22,6 +28,10 @@ const translations = {
     welcome: '¡Bienvenido! Haga una pregunta sobre una acción o seleccione un tipo de informe específico a continuación.',
     analysis_type_legend: 'Elija el tipo de análisis',
     analysis_type_chat: 'Chat',
+    analysis_type_caicai: 'Caicai',
+    analysis_type_quick_summary: 'Resumen Rápido',
+    analysis_type_deep_dive: 'Análisis Profundo FA',
+    analysis_type_technical: 'Análisis Técnico',
     placeholder_chat: "Pregunte sobre una acción (ej: 'análisis de foso para TSLA')...",
     placeholder_ticker: "Ingrese un símbolo bursátil...",
   },
@@ -30,6 +40,10 @@ const translations = {
     welcome: '欢迎！可以提出关于某只股票的问题，或在下方选择特定的报告类型。',
     analysis_type_legend: '选择分析类型',
     analysis_type_chat: '聊天',
+    analysis_type_caicai: '菜菜',
+    analysis_type_quick_summary: '快速摘要',
+    analysis_type_deep_dive: '深度基本面分析',
+    analysis_type_technical: '技术分析',
     placeholder_chat: "询问关于股票的问题（例如，'TSLA的护城河分析'）...",
     placeholder_ticker: "输入股票代码...",
   }
@@ -61,6 +75,9 @@ if (!chatContainer || !messageList || !chatForm || !promptInput || !sendButton |
 const analysisConfigs = new Map<string, any>();
 let tutorialSteps: any[] = [];
 let currentTutorialStep = 0;
+let currentChatSession: Chat | null = null;
+let currentChatType: string | null = null;
+
 
 // --- Gemini AI Initialization ---
 let ai: GoogleGenAI;
@@ -77,7 +94,7 @@ try {
  */
 async function loadConfigs() {
     try {
-        const configFiles = ['chat.json', 'quick_summary.json', 'deep_dive.json', 'technical.json'];
+        const configFiles = ['chat.json', 'quick_summary.json', 'deep_dive.json', 'technical.json', 'caicai.json'];
         
         for (const file of configFiles) {
             const response = await fetch(`./prompts/${file}`);
@@ -127,43 +144,77 @@ tutorialNext.addEventListener('click', handleTutorialNext);
 // --- Core Functions ---
 
 /**
- * Builds a prompt for the conversational chat mode.
- * @param {string} userQuery The user's natural language query.
- * @returns {{systemInstruction: string, contents: string}} The generated prompt object.
+ * Finds calculation blocks in the AI response, performs calculations, and replaces them with results.
+ * @param rawText The raw text from the AI.
+ * @returns The text with calculations performed and results embedded as HTML.
  */
-function buildChatPrompt(userQuery: string): { systemInstruction: string; contents: string } {
-    const chatConfig = analysisConfigs.get('chat');
-    if (!chatConfig || analysisConfigs.size <= 1) { // 1 is chat itself
-        throw new Error("Analysis configurations not loaded.");
+function processCalculationsInReport(rawText: string): string {
+    const regex = /<calculation-block type="(\w+)">([\s\S]*?)<\/calculation-block>/g;
+    return rawText.replace(regex, (match, type, jsonString) => {
+        try {
+            // Sanitize JSON string by removing potential markdown backticks
+            const sanitizedJsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+            const data = JSON.parse(sanitizedJsonString);
+            if (type === 'dcf') {
+                return calculateDCF(data as DcfInputs);
+            } else if (type === 'ratios') {
+                return calculateRatios(data as RatioInputs);
+            }
+            return `<p class="error">Unknown calculation type: ${type}</p>`;
+        } catch (e) {
+            console.error(`Failed to parse or calculate for type '${type}':`, jsonString, e);
+            return `<p class="error">Failed to process calculation block. Invalid data from AI.</p>`;
+        }
+    });
+}
+
+
+/**
+ * Gets the system instruction for a given chat type.
+ * For 'caicai', it injects the deep dive report structure.
+ * @param {string} analysisType The type of chat analysis.
+ * @returns {Promise<string>} The system instruction string.
+ */
+async function getChatSystemInstruction(analysisType: string): Promise<string> {
+    const chatConfig = analysisConfigs.get(analysisType);
+    if (!chatConfig) throw new Error(`Configuration for '${analysisType}' not found.`);
+
+    let systemInstruction = chatConfig.system_instruction_template;
+
+    const currentDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
+    if (systemInstruction.includes('{CURRENT_DATE}')) {
+        systemInstruction = systemInstruction.replace('{CURRENT_DATE}', currentDate);
     }
 
-    const allAnalysisStructures = Array.from(analysisConfigs.values())
-        .filter(config => config.id !== 'chat') // Exclude chat from the list of reports
-        .map(config => {
-            if (!config.report_structure || !config.displayName) return '';
-            
-            const sections = config.report_structure.sections || [{ heading: '', subheadings: config.report_structure.subheadings }];
-
-            const structureDetails = sections
-                .map((section: any) => {
-                    let sectionInfo = section.heading;
-                    if (section.subheadings && section.subheadings.length > 0) {
-                        sectionInfo += ` (covers: ${section.subheadings.join(', ')})`;
-                    }
-                    return sectionInfo;
-                })
-                .filter(Boolean)
-                .join('; ');
-
-            return `- **${config.displayName}**: ${structureDetails}`;
-        })
-        .join('\n');
-
-    const systemInstruction = chatConfig.system_instruction_template
-        .replace('{ALL_ANALYSIS_STRUCTURES}', allAnalysisStructures);
-
-    return { systemInstruction, contents: userQuery };
+    if (analysisType === 'caicai') {
+        const deepDiveConfig = analysisConfigs.get('deep_dive');
+        if (!deepDiveConfig) throw new Error("Deep Dive configuration is required for Caicai mode, but not found.");
+        const deepDiveStructure = buildDeepDiveStructure(deepDiveConfig.report_structure.sections);
+        systemInstruction = systemInstruction.replace('{DEEP_DIVE_STRUCTURE}', deepDiveStructure);
+    } else if (analysisType === 'chat') {
+        const allAnalysisStructures = Array.from(analysisConfigs.values())
+            .filter(config => config.id !== 'chat' && config.id !== 'caicai') // Exclude chat types
+            .map(config => {
+                if (!config.report_structure || !config.displayName) return '';
+                const sections = config.report_structure.sections || [{ heading: '', subheadings: config.report_structure.subheadings }];
+                const structureDetails = sections
+                    .map((section: any) => {
+                        let sectionInfo = section.heading;
+                        if (section.subheadings && section.subheadings.length > 0) {
+                            sectionInfo += ` (covers: ${section.subheadings.join(', ')})`;
+                        }
+                        return sectionInfo;
+                    })
+                    .filter(Boolean)
+                    .join('; ');
+                return `- **${config.displayName}**: ${structureDetails}`;
+            })
+            .join('\n');
+        systemInstruction = systemInstruction.replace('{ALL_ANALYSIS_STRUCTURES}', allAnalysisStructures);
+    }
+    return systemInstruction;
 }
+
 
 /**
  * Builds the structured text for a quick summary prompt.
@@ -224,6 +275,10 @@ function buildPrompt(analysisType: string, ticker: string): { systemInstruction:
 
     // Populate system instruction template
     systemInstruction = config.system_instruction_template;
+    const currentDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
+    if (systemInstruction.includes('{CURRENT_DATE}')) {
+        systemInstruction = systemInstruction.replace('{CURRENT_DATE}', currentDate);
+    }
     if (systemInstruction.includes('{STRUCTURE}')) {
         systemInstruction = systemInstruction.replace('{STRUCTURE}', structure);
     }
@@ -259,7 +314,10 @@ async function handleFormSubmit(e: SubmitEvent) {
   const userInput = promptInput.value.trim();
   const analysisType = (document.querySelector('input[name="analysis-type"]:checked') as HTMLInputElement)?.value;
 
-  if (!userInput || !ai || !analysisType) {
+  if (!userInput && analysisType !== 'caicai') {
+      return; // Allow empty input only for caicai mode
+  }
+  if (!ai || !analysisType) {
       if (analysisConfigs.size === 0) {
           addErrorMessage('Analysis configuration is still loading or failed to load. Please try again in a moment.');
       }
@@ -270,10 +328,12 @@ async function handleFormSubmit(e: SubmitEvent) {
   promptInput.value = '';
 
   let userMessageText = userInput;
-  if (analysisType !== 'chat') {
+  if (analysisType !== 'chat' && analysisType !== 'caicai' && userInput) {
       userMessageText = `${userInput.toUpperCase()} - ${getAnalysisTypeName(analysisType)}`;
   }
-  addUserMessage(userMessageText);
+  if (userInput) { // Only add user message if there is input
+    addUserMessage(userMessageText);
+  }
   
   const aiMessageElement = addAiMessage('');
   const aiContentElement = aiMessageElement.querySelector('.message-content');
@@ -282,20 +342,45 @@ async function handleFormSubmit(e: SubmitEvent) {
   showLoadingIndicator(aiContentElement);
   
   try {
-    let prompt: { systemInstruction: string; contents: string };
-    const ticker = userInput.toUpperCase();
+    const isChatMode = analysisType === 'chat' || analysisType === 'caicai';
 
-    if (analysisType === 'chat') {
-        prompt = buildChatPrompt(userInput);
-        await streamResponseToElement(prompt, aiContentElement);
+    if (isChatMode) {
+        // Handle conversational modes
+        if (currentChatType !== analysisType) { // New chat session needed
+            currentChatSession = null;
+            currentChatType = analysisType;
+        }
+        if (!currentChatSession) {
+            const systemInstruction = await getChatSystemInstruction(analysisType);
+            currentChatSession = ai.chats.create({ 
+                model: 'gemini-2.5-flash', 
+                config: { 
+                    systemInstruction,
+                    tools: [{googleSearch: {}}],
+                } 
+            });
+        }
+        const { groundingChunks } = await streamChatResponseToElement(userInput, aiContentElement);
+        addSourcesMessage(aiMessageElement, groundingChunks);
+
     } else {
-        prompt = buildPrompt(analysisType, ticker);
-        const fullResponse = await streamResponseToElement(prompt, aiContentElement);
+        // Handle one-shot report generation
+        const ticker = userInput.toUpperCase();
+        const prompt = buildPrompt(analysisType, ticker);
+        const { fullResponseText, groundingChunks } = await streamStatelessResponseToElement(prompt, aiContentElement);
+        addSourcesMessage(aiMessageElement, groundingChunks);
+
+        let finalContentForPdf = fullResponseText;
+        if (analysisType === 'deep_dive') {
+            const processedContent = processCalculationsInReport(fullResponseText);
+            aiContentElement.innerHTML = markdownToHtml(processedContent);
+            finalContentForPdf = processedContent;
+        }
 
         if (analysisType === 'quick_summary') {
             addGenerateReportButton(aiMessageElement, ticker);
         } else if (analysisType === 'deep_dive') {
-            addDownloadPdfButton(aiMessageElement, fullResponse, ticker);
+            addDownloadPdfButton(aiMessageElement, finalContentForPdf, ticker);
         }
     }
 
@@ -312,13 +397,23 @@ async function handleFormSubmit(e: SubmitEvent) {
 /**
  * Converts a simple Markdown string to HTML for display in the chat.
  * Supports: ## H2, ### H3, **bold**, - lists, and clickable links.
+ * Also preserves calculation result blocks.
  * @param {string} text - The Markdown text.
  * @returns {string} The corresponding HTML.
  */
 function markdownToHtml(text: string): string {
-    const safeText = text.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    // Temporarily replace calculation blocks with placeholders
+    const placeholders = new Map<string, string>();
+    let placeholderId = 0;
+    const textWithPlaceholders = text.replace(/<div class="calculation-result">[\s\S]*?<\/div>/g, (match) => {
+        const placeholder = `__CALC_PLACEHOLDER_${placeholderId++}__`;
+        placeholders.set(placeholder, match);
+        return placeholder;
+    });
+
+    const safeText = textWithPlaceholders.replace(/</g, "&lt;").replace(/>/g, "&gt;");
     
-    return safeText
+    let html = safeText
         // Process headers: ## and ### at the start of a line
         .replace(/^## (.*$)/gim, '<h2>$1</h2>')
         .replace(/^### (.*$)/gim, '<h3>$1</h3>')
@@ -330,25 +425,31 @@ function markdownToHtml(text: string): string {
         .replace(/<\/ul>\s*<ul>/gim, '')
         // Process links: autolink http/https urls
         .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
+
+    // Restore calculation blocks
+    placeholders.forEach((value, key) => {
+        // The placeholder key was escaped, so we need to match the escaped version
+        const escapedKey = key.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        html = html.replace(escapedKey, value);
+    });
+    
+    return html;
 }
 
-
 /**
- * Streams an AI response for a given prompt into a target HTML element.
- * @param {object} prompt - The prompt object with systemInstruction and contents.
+ * Streams an AI response for a stateful chat session into a target HTML element.
+ * @param {string} message - The user's message.
  * @param {HTMLElement} targetElement - The element to stream the response into.
- * @returns {Promise<string>} The full response text.
+ * @returns {Promise<{ fullResponseText: string; groundingChunks: any[]; }>} The full response text and any web sources.
  */
-async function streamResponseToElement(prompt: { systemInstruction: string; contents: string }, targetElement: HTMLElement): Promise<string> {
-    const responseStream = await ai.models.generateContentStream({
-        model: 'gemini-2.5-flash',
-        contents: prompt.contents,
-        config: {
-            systemInstruction: prompt.systemInstruction
-        }
-    });
-
+async function streamChatResponseToElement(message: string, targetElement: HTMLElement): Promise<{ fullResponseText: string; groundingChunks: any[]; }> {
+    if (!currentChatSession) {
+        throw new Error("Chat session not initialized.");
+    }
+    const responseStream = await currentChatSession.sendMessageStream({ message });
+    
     let fullResponse = '';
+    let groundingChunks: any[] = [];
     let firstChunk = true;
     for await (const chunk of responseStream) {
         if (firstChunk) {
@@ -357,8 +458,49 @@ async function streamResponseToElement(prompt: { systemInstruction: string; cont
         }
         fullResponse += chunk.text;
         targetElement.innerHTML = markdownToHtml(fullResponse);
+
+        if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+            groundingChunks.push(...chunk.candidates[0].groundingMetadata.groundingChunks);
+        }
     }
-    return fullResponse;
+    const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web?.uri, item])).values()).filter(Boolean);
+    return { fullResponseText: fullResponse, groundingChunks: uniqueGroundingChunks };
+}
+
+
+/**
+ * Streams an AI response for a stateless prompt into a target HTML element.
+ * @param {object} prompt - The prompt object with systemInstruction and contents.
+ * @param {HTMLElement} targetElement - The element to stream the response into.
+ * @returns {Promise<{ fullResponseText: string; groundingChunks: any[]; }>} The full response text and any web sources.
+ */
+async function streamStatelessResponseToElement(prompt: { systemInstruction: string; contents: string }, targetElement: HTMLElement): Promise<{ fullResponseText: string; groundingChunks: any[]; }> {
+    const responseStream = await ai.models.generateContentStream({
+        model: 'gemini-2.5-flash',
+        contents: prompt.contents,
+        config: {
+            systemInstruction: prompt.systemInstruction,
+            tools: [{googleSearch: {}}],
+        }
+    });
+
+    let fullResponse = '';
+    let groundingChunks: any[] = [];
+    let firstChunk = true;
+    for await (const chunk of responseStream) {
+        if (firstChunk) {
+            hideLoadingIndicator(targetElement);
+            firstChunk = false;
+        }
+        fullResponse += chunk.text;
+        targetElement.innerHTML = markdownToHtml(fullResponse);
+
+        if (chunk.candidates?.[0]?.groundingMetadata?.groundingChunks) {
+            groundingChunks.push(...chunk.candidates[0].groundingMetadata.groundingChunks);
+        }
+    }
+    const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web?.uri, item])).values()).filter(Boolean);
+    return { fullResponseText: fullResponse, groundingChunks: uniqueGroundingChunks };
 }
 
 /**
@@ -377,10 +519,27 @@ async function generateAndDownloadPdfReport(ticker: string, button: HTMLButtonEl
             model: 'gemini-2.5-flash',
             contents: prompt.contents,
             config: {
-                systemInstruction: prompt.systemInstruction
+                systemInstruction: prompt.systemInstruction,
+                tools: [{googleSearch: {}}],
             }
         });
-        downloadAsPdf(response.text, ticker);
+        
+        const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        const processedContent = processCalculationsInReport(response.text);
+
+        let contentForPdf = processedContent;
+        if (groundingChunks.length > 0) {
+            contentForPdf += '\n\n## Sources from Google Search\n';
+            const uniqueGroundingChunks = Array.from(new Map(groundingChunks.map(item => [item.web?.uri, item])).values()).filter(Boolean);
+
+            uniqueGroundingChunks.forEach(chunk => {
+                if (chunk.web && chunk.web.uri && chunk.web.title) {
+                    contentForPdf += `- [${chunk.web.title}](${chunk.web.uri})\n`;
+                }
+            });
+        }
+        
+        downloadAsPdf(contentForPdf, ticker);
 
     } catch (error) {
         console.error("PDF Generation Error:", error);
@@ -457,8 +616,8 @@ function downloadAsPdf(reportText: string, ticker: string) {
 
         const renderFormattedLine = (line: string, x: number, currentY: number, maxWidth: number): number => {
             const originalFontSize = doc.getFontSize();
-            doc.setFontSize(10);
-            const lineHeight = 5;
+            doc.setFontSize(15);
+            const lineHeight = 7;
             let currentX = x;
 
             const tokens = tokenizeLine(line);
@@ -544,6 +703,85 @@ function downloadAsPdf(reportText: string, ticker: string) {
                 y += 5;
                 return;
             }
+            
+            if (line.startsWith('<div class="calculation-result"')) {
+                if (inTable) renderTable();
+                
+                const tempElem = document.createElement('div');
+                tempElem.innerHTML = line;
+
+                const h4 = tempElem.querySelector('h4');
+                const paragraphs = tempElem.querySelectorAll('p');
+                
+                const blockHeight = 15 + (paragraphs.length * 9);
+                checkPageBreak(blockHeight);
+                
+                const startY = y;
+
+                // Background
+                doc.setFillColor(244, 247, 249);
+                doc.roundedRect(leftMargin, startY, contentWidth, blockHeight, 3, 3, 'F');
+                
+                // Left Border Accent
+                doc.setDrawColor(92, 107, 192); 
+                doc.setLineWidth(1.5);
+                doc.line(leftMargin, startY, leftMargin, startY + blockHeight);
+
+                y = startY + 8; // Top padding
+
+                if (h4) {
+                    doc.setFontSize(18);
+                    doc.setFont(undefined, 'bold');
+                    doc.setTextColor(26, 35, 126);
+                    doc.text(h4.textContent || '', leftMargin + 5, y);
+                    y += 10;
+                }
+                
+                doc.setFontSize(15);
+                doc.setTextColor(51, 51, 51);
+                
+                paragraphs.forEach(p => {
+                    const strongElem = p.querySelector('strong');
+                    const spanElem = p.querySelector('span');
+                    const fullText = p.innerText || '';
+
+                    if (!strongElem) {
+                        doc.setFont(undefined, 'normal');
+                        doc.text(fullText, leftMargin + 5, y);
+                    } else {
+                        const strongText = (strongElem.textContent || '');
+                        const remainingText = fullText.replace(strongText, '').trim();
+
+                        doc.setFont(undefined, 'bold');
+                        const strongWidth = doc.getTextWidth(strongText + ' ');
+                        doc.text(strongText, leftMargin + 5, y);
+                        doc.setFont(undefined, 'normal');
+
+                        let currentX = leftMargin + 5 + strongWidth;
+                        
+                        if (!spanElem) {
+                            doc.text(remainingText, currentX, y);
+                        } else {
+                            const spanText = spanElem.textContent || '';
+                            const textAfterSpan = remainingText.replace(spanText, '');
+                            
+                            const hexColor = spanElem.style.color;
+                            const originalColor = doc.getTextColor();
+                            if (hexColor?.toLowerCase() === '#f44336') doc.setTextColor(211, 47, 47); // Red
+                            else if (hexColor?.toLowerCase() === '#4caf50') doc.setTextColor(56, 142, 60); // Green
+                            
+                            doc.text(spanText, currentX, y);
+                            currentX += doc.getTextWidth(spanText);
+                            
+                            doc.setTextColor(originalColor);
+                            doc.text(textAfterSpan, currentX, y);
+                        }
+                    }
+                    y += 9; // Line height for 15pt font
+                });
+                y = startY + blockHeight + 5; // Move y past the block
+                return;
+            }
 
             if (line.includes('|') && line.startsWith('|')) {
                 inTable = true;
@@ -556,26 +794,27 @@ function downloadAsPdf(reportText: string, ticker: string) {
             checkPageBreak();
 
             if (line.startsWith('## ')) {
-                y += 5;
-                doc.setFontSize(16);
+                y += 7;
+                doc.setFontSize(20);
                 doc.setFont(undefined, 'bold');
                 doc.text(line.substring(3), leftMargin, y, { maxWidth: contentWidth });
-                y += 10;
+                y += 12;
             } else if (line.startsWith('### ')) {
-                y += 4;
-                doc.setFontSize(12);
+                y += 6;
+                doc.setFontSize(16);
                 doc.setFont(undefined, 'bold');
                 doc.setTextColor(63, 81, 181);
                 doc.text(line.substring(4), leftMargin, y, { maxWidth: contentWidth });
                 doc.setTextColor(51, 51, 51);
-                y += 8;
+                y += 10;
             } else if (line.startsWith('- ')) {
-                doc.setFontSize(10);
+                y += 2; // small gap before bullet
+                checkPageBreak(8); 
+                doc.setFontSize(15);
                 doc.setFont(undefined, 'normal');
-                const bulletLines = doc.splitTextToSize(`•  ${line.substring(2)}`, contentWidth - 3);
-                bulletLines.forEach((bulletLine: string) => {
-                    y = renderFormattedLine(bulletLine, leftMargin + 3, y - 5, contentWidth - 3);
-                });
+                doc.text('•', leftMargin + 2, y); // Draw bullet
+                const restOfLine = line.substring(2).trim();
+                y = renderFormattedLine(restOfLine, leftMargin + 7, y, contentWidth - 7);
 
             } else {
                  y = renderFormattedLine(line, leftMargin, y, contentWidth);
@@ -632,6 +871,7 @@ function buildTutorialSteps() {
     tutorialSteps = [];
     const stepsConfig = [
         { id: 'chat', position: 'bottom' },
+        { id: 'caicai', position: 'bottom' },
         { id: 'quick_summary', position: 'bottom' },
         { id: 'deep_dive', position: 'bottom' },
         { id: 'technical', position: 'bottom' },
@@ -782,10 +1022,20 @@ function populateAnalysisOptions() {
     const fieldset = analysisOptions.querySelector('fieldset');
     if (!fieldset) return;
 
+    // Clear existing dynamic options but keep the static 'Chat' option
     fieldset.querySelectorAll('.dynamic-option').forEach(el => el.remove());
+    
+    // Create a fragment to batch DOM insertions
+    const fragment = document.createDocumentFragment();
 
-    analysisConfigs.forEach(config => {
-        if (config.id === 'chat') return;
+    // Sort configs to control order, e.g., 'caicai' after 'chat'
+    const sortedConfigs = Array.from(analysisConfigs.values()).sort((a, b) => {
+        const order = { 'chat': 1, 'caicai': 2, 'quick_summary': 3, 'deep_dive': 4, 'technical': 5 };
+        return (order[a.id as keyof typeof order] || 99) - (order[b.id as keyof typeof order] || 99);
+    });
+
+    sortedConfigs.forEach(config => {
+        if (config.id === 'chat') return; // Skip static chat, it's already in HTML
 
         const div = document.createElement('div');
         div.className = 'dynamic-option';
@@ -797,12 +1047,20 @@ function populateAnalysisOptions() {
 
         const label = document.createElement('label');
         label.htmlFor = config.id;
-        label.textContent = config.displayName;
+        
+        const translationKey = `analysis_type_${config.id}`;
+        label.setAttribute('data-translate-key', translationKey);
+
+        // Set initial text from the current language's strings
+        const langStrings = translations[currentLang];
+        label.textContent = (langStrings as any)[translationKey] || config.displayName;
 
         div.appendChild(input);
         div.appendChild(label);
-        fieldset.appendChild(div);
+        fragment.appendChild(div);
     });
+    
+    fieldset.appendChild(fragment);
 }
 
 
@@ -843,6 +1101,39 @@ function addErrorMessage(text: string) {
         content.innerHTML = `<span class="error">${text}</span>`;
     }
 }
+
+/**
+ * Adds a "Sources" section with links to an AI message.
+ * @param {HTMLElement} messageElement - The AI message element to add the sources to.
+ * @param {any[]} chunks - The grounding chunks from the Gemini response.
+ */
+function addSourcesMessage(messageElement: HTMLElement, chunks: any[]) {
+    if (!chunks || chunks.length === 0) return;
+
+    const sourcesContainer = document.createElement('div');
+    sourcesContainer.className = 'sources-container';
+
+    let sourcesHtml = '<h4>Sources from Google Search:</h4><ul>';
+    chunks.forEach(chunk => {
+        if (chunk.web && chunk.web.uri && chunk.web.title) {
+            // Sanitize title to prevent XSS
+            const title = chunk.web.title.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+            sourcesHtml += `<li><a href="${chunk.web.uri}" target="_blank" rel="noopener noreferrer">${title}</a></li>`;
+        }
+    });
+    sourcesHtml += '</ul>';
+
+    sourcesContainer.innerHTML = sourcesHtml;
+    
+    const contentElement = messageElement.querySelector('.message-content');
+    if (contentElement) {
+        contentElement.appendChild(sourcesContainer);
+    } else {
+        messageElement.appendChild(sourcesContainer);
+    }
+    scrollToBottom();
+}
+
 
 /**
  * Adds a "Generate Full Report (PDF)" button to a message.
@@ -902,17 +1193,24 @@ function scrollToBottom() {
 }
 
 /**
- * Gets the display name for an analysis type value.
+ * Gets the display name for an analysis type value from the UI.
  * @param {string} value - The analysis type value (e.g., 'quick_summary').
- * @returns {string} The display-friendly name.
+ * @returns {string} The display-friendly, translated name.
  */
 function getAnalysisTypeName(value: string): string {
-    if (value === 'chat') {
-        const element = document.querySelector(`label[for="chat"]`);
-        return element ? element.textContent || 'Chat' : 'Chat';
+    const labelElement = document.querySelector(`label[for="${value}"]`);
+    if (labelElement?.textContent) {
+        return labelElement.textContent;
+    }
+    // Fallback in case the label is not found
+    const translationKey = `analysis_type_${value}`;
+    const translated = (translations[currentLang] as any)[translationKey];
+    if (translated) {
+        return translated;
     }
     return analysisConfigs.get(value)?.displayName || 'Analysis';
 }
+
 
 // --- Theme and Language Functions ---
 
@@ -950,8 +1248,8 @@ function updateUI(lang: Lang) {
     const langStrings = translations[lang];
     document.querySelectorAll('[data-translate-key]').forEach(element => {
         const key = element.getAttribute('data-translate-key');
-        if (key && langStrings[key as keyof typeof langStrings]) {
-            element.textContent = langStrings[key as keyof typeof langStrings];
+        if (key && (langStrings as any)[key]) {
+            element.textContent = (langStrings as any)[key];
         }
     });
     updatePlaceholder();
@@ -960,7 +1258,14 @@ function updateUI(lang: Lang) {
 /** Updates the input placeholder text based on selected language and analysis type. */
 function updatePlaceholder() {
     const selectedAnalysisType = (document.querySelector('input[name="analysis-type"]:checked') as HTMLInputElement)?.value;
-    if (selectedAnalysisType === 'chat') {
+    
+    // Reset chat session if switching to a non-chat mode
+    if (selectedAnalysisType !== 'chat' && selectedAnalysisType !== 'caicai') {
+        currentChatSession = null;
+        currentChatType = null;
+    }
+
+    if (selectedAnalysisType === 'chat' || selectedAnalysisType === 'caicai') {
         promptInput.placeholder = translations[currentLang].placeholder_chat;
     } else {
         promptInput.placeholder = translations[currentLang].placeholder_ticker;

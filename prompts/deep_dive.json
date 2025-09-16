@@ -3,7 +3,7 @@
   "displayName": "Deep Dive FA",
   "description": "Receive a comprehensive, multi-section fundamental analysis report, perfect for in-depth research. You can also download this report as a PDF.",
   "prompt_description": "Create a comprehensive analyst report for {TICKER}, following a specific structure and formatting.",
-  "system_instruction_template": "You are a senior financial analyst creating a comprehensive, professional analyst report.\nUse Markdown for formatting ('##' for main headings, '###' for subheadings, '**text**' for bold).\nPrioritize information from these sources: {DATA_SOURCES}.\nFor the DCF analysis, use these parameters as a guide: {DCF_PARAMETERS}.\nFollow this report structure precisely:\n{STRUCTURE}",
+  "system_instruction_template": "You are a senior financial analyst creating a comprehensive, professional analyst report.\nToday's date is {CURRENT_DATE}. Use this as a reference for any time-sensitive data searches.\nUse Markdown for formatting ('##' for main headings, '###' for subheadings, '**text**' for bold).\nPrioritize information from these sources: {DATA_SOURCES}.\nFollow this report structure precisely:\n{STRUCTURE}\n\n**CRITICAL INSTRUCTIONS FOR CALCULATIONS:**\nFor the 'DCF Model' and 'Valuation Comparison' sections, you MUST NOT calculate the final values (Intrinsic Value, P/E, P/S). Your task is to find the necessary input data and provide it inside a JSON object wrapped in `<calculation-block>` tags. The client application will perform the final calculation.\n\n1.  **For the DCF Model:**\n    - In the 'DCF Model' subheading, find the inputs and embed this block:\n    `<calculation-block type=\"dcf\">\n      {\n        \"currentSharePrice\": [number],\n        \"sharesOutstanding\": [number in millions],\n        \"freeCashFlows\": [[number], [number], [number], [number], [number]],\n        \"discountRate\": [number as decimal, e.g., 0.10 for 10%],\n        \"perpetualGrowthRate\": [number as decimal, e.g., 0.025 for 2.5%],\n        \"cashAndEquivalents\": [number in millions],\n        \"totalDebt\": [number in millions]\n      }\n    </calculation-block>`\n\n2.  **For Valuation Comparison (P/E and P/S Ratios):**\n    - In the 'Valuation Comparison' subheading, find the inputs and embed this block:\n    `<calculation-block type=\"ratios\">\n      {\n        \"currentSharePrice\": [number],\n        \"eps\": [number],\n        \"sps\": [number]\n      }\n    </calculation-block>`\n\n- Write a brief commentary about the inputs you found. The final calculated value will be inserted by the application where the `<calculation-block>` is placed.",
   "citation_template": "\n\nAt the end of the report, under the 'References' section, list all primary websites and data sources you used from the provided list. For any websites, provide a direct, clickable Markdown link.",
   "report_structure": {
     "sections": [
@@ -15,9 +15,9 @@
         "heading": "Valuation Analysis",
         "score_guideline": "/10",
         "subheadings": [
-          "DCF Model",
-          "DCF Inputs",
-          "Valuation Comparison",
+          "DCF Model (Calculated by App)",
+          "DCF Inputs (Provide as JSON)",
+          "Valuation Comparison (Calculated by App)",
           "Bull/Bear/Base Case Commentary & Weighting"
         ]
       },
@@ -50,10 +50,10 @@
         "heading": "Environmental, Social, and Governance (ESG) Analysis",
         "score_guideline": "/10",
         "subheadings": [
-            "ESG Rating & Key Issues",
-            "Environmental Factors",
-            "Social Factors",
-            "Governance Factors"
+          "ESG Rating & Key Issues",
+          "Environmental Factors",
+          "Social Factors",
+          "Governance Factors"
         ]
       },
       {

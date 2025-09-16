@@ -164,6 +164,31 @@ body.dark-mode #theme-toggle .sun { display: none; }
     font-weight: 600;
 }
 
+.calculation-result {
+    background-color: rgba(0, 0, 0, 0.03);
+    border: 1px solid var(--border-color);
+    border-left: 4px solid var(--secondary-color);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-top: 1em;
+    margin-bottom: 1em;
+}
+
+body.dark-mode .calculation-result {
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.calculation-result h4 {
+    margin-top: 0;
+    color: var(--primary-color);
+    font-size: 1.1em;
+}
+
+.calculation-result p {
+    margin: 0.5em 0;
+}
+
+
 .message-content ul {
     padding-left: 20px;
     margin-top: 0.5em;
@@ -465,4 +490,44 @@ body.dark-mode #prompt-input {
 
 #tutorial-next:hover {
   background-color: var(--primary-color);
+}
+
+.sources-container {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border-color);
+    font-size: 0.9rem;
+    transition: border-color 0.3s ease;
+}
+
+.sources-container h4 {
+    margin-top: 0;
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+    color: var(--secondary-color);
+    transition: color 0.3s ease;
+}
+
+.sources-container ul {
+    margin: 0;
+    padding-left: 1.2rem;
+    list-style-type: disc;
+}
+
+.sources-container li {
+    margin-bottom: 0.25rem;
+}
+
+.sources-container a {
+    color: var(--primary-color);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+body.dark-mode .sources-container a {
+    color: #9fa8da; /* Lighter indigo for dark mode */
+}
+
+.sources-container a:hover {
+    text-decoration: underline;
 }

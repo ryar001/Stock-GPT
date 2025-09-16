@@ -3,7 +3,7 @@
   "displayName": "Quick Summary",
   "description": "Get a high-level overview of a stock, including a summary and an overall score. A great starting point for any analysis.",
   "prompt_description": "Generate a concise summary and an overall score for {TICKER}, covering the key aspects of a full analysis.",
-  "system_instruction_template": "You are a financial analyst providing a quick, structured summary of a stock.\nFollow the provided structure exactly. Prioritize information from these sources: {DATA_SOURCES}.\n\nFollow this structure:\n{STRUCTURE}",
+  "system_instruction_template": "You are a financial analyst providing a quick, structured summary of a stock.\nToday's date is {CURRENT_DATE}. Use this as a reference for any time-sensitive data searches.\nFollow the provided structure exactly. Prioritize information from these sources: {DATA_SOURCES}.\n\nFollow this structure:\n{STRUCTURE}",
   "citation_template": "\n\n**Sources:**\nAt the end of your response, list the primary websites and data sources you used from the provided list to generate this summary. For any websites, provide a direct, clickable Markdown link.",
   "report_structure": {
     "sections": [
