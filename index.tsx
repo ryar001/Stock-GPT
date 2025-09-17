@@ -181,6 +181,12 @@ async function getChatSystemInstruction(analysisType: string): Promise<string> {
 
     let systemInstruction = chatConfig.system_instruction_template;
 
+    // Add language instruction
+    const languageName = getLanguageFullName(currentLang);
+    if (currentLang !== 'en') {
+        systemInstruction = `Your entire response must be in ${languageName}.\n\n` + systemInstruction;
+    }
+
     const currentDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
     if (systemInstruction.includes('{CURRENT_DATE}')) {
         systemInstruction = systemInstruction.replace('{CURRENT_DATE}', currentDate);
@@ -275,6 +281,13 @@ function buildPrompt(analysisType: string, ticker: string): { systemInstruction:
 
     // Populate system instruction template
     systemInstruction = config.system_instruction_template;
+
+    // Add language instruction
+    const languageName = getLanguageFullName(currentLang);
+    if (currentLang !== 'en') {
+        systemInstruction = `Your entire response must be in ${languageName}.\n\n` + systemInstruction;
+    }
+
     const currentDate = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD format
     if (systemInstruction.includes('{CURRENT_DATE}')) {
         systemInstruction = systemInstruction.replace('{CURRENT_DATE}', currentDate);
@@ -1213,6 +1226,15 @@ function getAnalysisTypeName(value: string): string {
 
 
 // --- Theme and Language Functions ---
+
+/** Gets the full name of a language from its code. */
+function getLanguageFullName(lang: Lang): string {
+    switch (lang) {
+        case 'es': return 'Spanish';
+        case 'zh-CN': return 'Simplified Chinese';
+        default: return 'English';
+    }
+}
 
 /** Applies the specified theme to the app. */
 function applyTheme(theme: 'light' | 'dark') {
